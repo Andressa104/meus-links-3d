@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Árvore de Links 3D</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+<style>
+body {
+margin: 0;
+overflow: hidden;
+font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+#canvas-container {
+position: fixed;
+top: 0;
+left: 0;
+width: 100%;
+height: 100%;
+z-index: -1;
+}
+.link-node {
+position: absolute;
+transform: translate(-50%, -50%);
+background-color: rgba(255, 255, 255, 0.9);
+border: 2px solid #FF7A00;
+border-radius: 12px;
+padding: 12px 20px;
+cursor: pointer;
+transition: all 0.3s ease;
+box-shadow: 0 4px 12px rgba(255, 122, 0, 0.2);
+opacity: 0;
+pointer-events: none;
+max-width: 280px;
+text-align: center;
+}
+.link-node.active {
+opacity: 1;
+pointer-events: auto;
+}
+.link-node:hover {
+transform: translate(-50%, -50%) scale(1.05);
+box-shadow: 0 6px 16px rgba(255, 122, 0, 0.3);
+}
+.link-title {
+color: #FF7A00;
+font-weight: 600;
+font-size: 1.1rem;
+margin-bottom: 4px;
+}
+.link-desc {
+color: #333;
+font-size: 0.9rem;
+}
+.controls {
+position: fixed;
+bottom: 20px;
+left: 50%;
+transform: translateX(-50%);
+display: flex;
+gap: 10px;
+z-index: 100;
+}
+.control-btn {
+background-color: rgba(255, 255, 255, 0.9);
+border: 2px solid #FF7A00;
+color: #FF7A00;
+border-radius: 30px;
+padding: 8px 16px;
+cursor: pointer;
+transition: all 0.3s ease;
+font-weight: 600;
+}
+.control-btn:hover {
+background-color: #FF7A00;
+color: white;
+}
+.title-container {
+position: fixed;
+top: 20px;
+left: 50%;
+transform: translateX(-50%);
+text-align: center;
+z-index: 100;
+}
+.main-title {
+color: #FF7A00;
+font-size: 2rem;
+font-weight: 700;
+text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+background-color: rgba(255, 255, 255, 0.8);
+padding: 10px 20px;
+border-radius: 12px;
+}
+@media (max-width: 768px) {
+.link-node {
+padding: 8px 14px;
+max-width: 220px;
+}
+.link-title {
+font-size: 0.9rem;
+}
+.link-desc {
+font-size: 0.8rem;
+}
+.main-title {
+font-size: 1.5rem;
+}
+.controls {
+flex-wrap: wrap;
+justify-content: center;
+}
+}
+</style>
+</head>
+<body class="bg-gray-100">
+<div id="canvas-container"></div>
+<div class="title-container">
+<h1 class="main-title">Árvore de Links 3D</h1>
+</div>
+<div id="nodes-container"></div>
+<div class="controls">
+<button class="control-btn" id="zoom-in">Aproximar</button>
+<button class="control-btn" id="zoom-out">Afastar</button>
+<button class="control-btn" id="rotate">Parar</button>
+<button class="control-btn" id="reset">Resetar</button>
+</div>
+<script>
+// Configuração da cena Three.js
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xffffff, 1);
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+// Luz ambiente
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+// Luz direcional
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+directionalLight.position.set(0, 10, 10);
+scene.add(directionalLight);
+// Posição inicial da câmera
+camera.position.z = 15;
+// Dados dos links atualizados com URLs e descrições
+const links = [
+{
+id: 1,
+title: "Pegue seu Presente",
+description: "Grupo exclusivo no Telegram com conteúdos gratuitos",
+url: "https://t.me/+suKlJEu92AczOWQ5",
+parent: null
+},
+{
+id: 2,
+title: "Start Digital",
+description: "Novo start - curso para quem deseja iniciar ou destravar no mercado digital sem precisar aparecer",
+url: "https://pay.kiwify.com.br/CmsPj6t?afid=iUjmvgzv",
+parent: null
+},
+{
+id: 3,
+title: "Pack de Figurinhas",
+description: "Pack de figurinhas - não é telegram, não é drive, é app. Só copiar e colar sem precisar baixar na galeria do celular",
+url: "https://kiwify.app/kNUEibU?afid=ojGk2mK6",
+parent: null
+},
+{
+id: 4,
+title: "Seja Produtora",
+description: "Seja produtora - loja PLR, produtos prontos para usar ou revender como seu",
+url: "https://t.me/+m4e_pT0L9Oo1Y2Ux",
+parent: null
+},
+{
+id: 5,
+title: "PVV - Vídeos Magnéticos",
+description: "PVV - vídeos magnéticos para stories, reels, anúncios, nunca mais seu conteúdo vai passar despercebido",
+url: "https://pay.cakto.com.br/q8csSuH?affiliate=eyYu2QHP",
+parent: null
+}
+];
+// Criar nós 3D e conexões
+const nodes = [];
+const spheres = [];
+const lines = [];
+const nodePositions = {};
+// Função para criar a estrutura da árvore
+function createTree() {
+// Limpar cena
+spheres.forEach(sphere => scene.remove(sphere));
+lines.forEach(line => scene.remove(line));
+spheres.length = 0;
+lines.length = 0;
+// Distribuir nós em um círculo
+const nodeCount = links.length;
+const radius = 5;
+const angleStep = (Math.PI * 2) / nodeCount;
+links.forEach((link, index) => {
+const angle = angleStep * index;
+const x = radius * Math.cos(angle);
+const y = radius * Math.sin(angle);
+const z = 0;
+const position = new THREE.Vector3(x, y, z);
+nodePositions[link.id] = position;
+// Criar esfera para representar o nó
+const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+const sphereMaterial = new THREE.MeshPhongMaterial({
+color: 0xFF7A00,
+shininess: 80,
+specular: 0xffffff
+});
+const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+sphere.position.copy(position);
+scene.add(sphere);
+spheres.push(sphere);
+// Criar linhas conectando ao centro
+const centerPosition = new THREE.Vector3(0, 0, 0);
+const lineMaterial = new THREE.LineBasicMaterial({
+color: 0xFF7A00,
+linewidth: 2,
+opacity: 0.7,
+transparent: true
+});
+const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+centerPosition,
+position
+]);
+const line = new THREE.Line(lineGeometry, lineMaterial);
+scene.add(line);
+lines.push(line);
+});
+// Criar esfera central
+const centerSphereGeometry = new THREE.SphereGeometry(0.8, 32, 32);
+const centerSphereMaterial = new THREE.MeshPhongMaterial({
+color: 0xFFFFFF,
+shininess: 100,
+specular: 0xFF7A00,
+emissive: 0xFF7A00,
+emissiveIntensity: 0.3
+});
+const centerSphere = new THREE.Mesh(centerSphereGeometry, centerSphereMaterial);
+centerSphere.position.set(0, 0, 0);
+scene.add(centerSphere);
+spheres.push(centerSphere);
+// Criar nós HTML correspondentes
+createHTMLNodes();
+updateNodePositions();
+}
+// Criar nós HTML para interação
+function createHTMLNodes() {
+const container = document.getElementById('nodes-container');
+container.innerHTML = '';
+links.forEach(link => {
+const nodeElement = document.createElement('div');
+nodeElement.className = 'link-node';
+nodeElement.id = `node-${link.id}`;
+nodeElement.innerHTML = `
+<div class="link-title">${link.title}</div>
+<div class="link-desc">${link.description}</div>
+`;
+nodeElement.addEventListener('click', () => {
+// Abrir o link em uma nova aba
+window.open(link.url, '_blank');
+// Efeito visual ao clicar
+const sphere = spheres[links.findIndex(l => l.id === link.id)];
+if (sphere) {
+const originalColor = sphere.material.color.getHex();
+sphere.material.color.set(0xFFFFFF);
+setTimeout(() => {
+sphere.material.color.set(originalColor);
+}, 300);
+}
+});
+container.appendChild(nodeElement);
+});
+}
+// Atualizar posições dos nós HTML com base nas posições 3D
+function updateNodePositions() {
+links.forEach(link => {
+const nodeElement = document.getElementById(`node-${link.id}`);
+const position = nodePositions[link.id];
+if (position) {
+// Converter posição 3D para coordenadas de tela
+const vector = position.clone();
+vector.project(camera);
+const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+const y = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
+const z = vector.z;
+// Atualizar posição do elemento HTML
+nodeElement.style.left = `${x}px`;
+nodeElement.style.top = `${y}px`;
+// Mostrar apenas nós visíveis (z < 1)
+if (z < 1) {
+nodeElement.classList.add('active');
+} else {
+nodeElement.classList.remove('active');
+}
+}
+});
+}
+// Controles de interação
+document.getElementById('zoom-in').addEventListener('click', () => {
+camera.position.z -= 2;
+});
+document.getElementById('zoom-out').addEventListener('click', () => {
+camera.position.z += 2;
+});
+let isRotating = true; // Iniciar com rotação automática
+document.getElementById('rotate').addEventListener('click', () => {
+isRotating = !isRotating;
+document.getElementById('rotate').textContent = isRotating ? 'Parar' : 'Girar';
+});
+document.getElementById('reset').addEventListener('click', () => {
+camera.position.set(0, 0, 15);
+scene.rotation.set(0, 0, 0);
+});
+// Redimensionar canvas quando a janela for redimensionada
+window.addEventListener('resize', () => {
+camera.aspect = window.innerWidth / window.innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(window.innerWidth, window.innerHeight);
+});
+// Interação com o mouse
+let isDragging = false;
+let previousMousePosition = { x: 0, y: 0 };
+document.addEventListener('mousedown', (e) => {
+isDragging = true;
+previousMousePosition = { x: e.clientX, y: e.clientY };
+});
+document.addEventListener('mouseup', () => {
+isDragging = false;
+});
+document.addEventListener('mousemove', (e) => {
+if (isDragging) {
+const deltaMove = {
+x: e.clientX - previousMousePosition.x,
+y: e.clientY - previousMousePosition.y
+};
+scene.rotation.y += deltaMove.x * 0.01;
+scene.rotation.x += deltaMove.y * 0.01;
+previousMousePosition = { x: e.clientX, y: e.clientY };
+}
+});
+// Interação com toque para dispositivos móveis
+document.addEventListener('touchstart', (e) => {
+if (e.touches.length === 1) {
+isDragging = true;
+previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}
+});
+document.addEventListener('touchend', () => {
+isDragging = false;
+});
+document.addEventListener('touchmove', (e) => {
+if (isDragging && e.touches.length === 1) {
+const deltaMove = {
+x: e.touches[0].clientX - previousMousePosition.x,
+y: e.touches[0].clientY - previousMousePosition.y
+};
+scene.rotation.y += deltaMove.x * 0.01;
+scene.rotation.x += deltaMove.y * 0.01;
+previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+e.preventDefault();
+}
+});
+// Adicionar efeito de pulsar nas esferas
+function pulseSpheres() {
+spheres.forEach((sphere, index) => {
+const time = Date.now() * 0.001;
+const offset = index * 0.2;
+const scale = 1 + 0.1 * Math.sin(time + offset);
+sphere.scale.set(scale, scale, scale);
+});
+}
+// Função de animação
+function animate() {
+requestAnimationFrame(animate);
+// Rotação automática
+if (isRotating) {
+scene.rotation.y += 0.005;
+}
+// Efeito de pulsar
+pulseSpheres();
+// Atualizar posições dos nós HTML
+updateNodePositions();
+renderer.render(scene, camera);
+}
+// Iniciar
+createTree();
+animate();
+</script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96579f4af5a29a7f',t:'MTc1MzU3MTk2OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
